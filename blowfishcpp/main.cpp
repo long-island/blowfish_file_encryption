@@ -7,6 +7,8 @@
 #include <iostream>
 #include <fstream>
 #include <strings.h>
+#include <stdlib.h>
+#include <string>
 using namespace std;
 
 #define IP_SIZE 1024
@@ -14,6 +16,36 @@ using namespace std;
 
 //unsigned char key[16];
 //unsigned char iv[8];
+
+int
+sync (char *sync_file)
+{
+	std::string cp_cmd ("");
+	std::string sync_cmd ("");
+	std::string cp ("cp");
+	std::string space (" ");
+	std::string src (sync_file);
+	std::cout << src << endl;
+	std::string PATH ("/home/bala/S_drive/");
+	std::string cd ("cd");
+	std::string sep (" ; ");
+	sync_cmd+=cd+space+PATH+sep+"./grive";
+	cp_cmd+=cp+space+src+space+PATH;
+	std::cout << cp_cmd.c_str() << endl;
+	if(system(cp_cmd.c_str())==-1)
+	{
+		perror("system(3) failed");
+	}
+	else
+	{
+		std::cout << sync_cmd.c_str() << endl;
+		if(system(sync_cmd.c_str())==-1)
+			{
+				perror("system(3) for sync failed");
+			}
+	}
+	return 0;
+}
 
 int
 print_key (char *key_file)
@@ -217,7 +249,7 @@ main (int argc, char *argv[])
 	mode_t mode;
 	char choice, temp;
 	int done = 0, n, olen;
-	char key_file[31];
+	char key_file[31], sync_file[31];
 
 //	bzero (&key, 16);
 //	bzero (&iv, 8);
@@ -236,7 +268,8 @@ main (int argc, char *argv[])
 		  printf ("\nE - Encrypt a file\n");
 		  printf ("D - Decrypt a file\n");
 		  printf ("G - Generate a key\n");
-		  printf ("P - Print a key from file\n");
+		  printf ("P - Print a key from keyfile\n");
+		  printf ("S - sync a file with S-Drive\n");
 		  printf ("Q - Quit\n");
 
 		  choice = getchar ();
@@ -303,7 +336,12 @@ main (int argc, char *argv[])
 		    	//		    					    perror ("open key file error");
 		    				    print_key(key_file);
 		    				    break;
-
+		    case 'S':
+		    case 's':
+		    	printf ("\nEnter Name of the file to be synced:\t");
+		    	scanf("%30s",&sync_file);
+		    	sync(sync_file);
+			    break;
 		    case 'Q':
 		    case 'q':
 		    	exit(0);

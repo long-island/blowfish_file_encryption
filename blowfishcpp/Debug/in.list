@@ -1,6 +1,0 @@
-in.list
-makefile
-objects.mk
-sources.mk
-SSH_AGENT_PID=2777
-subdir.mk
