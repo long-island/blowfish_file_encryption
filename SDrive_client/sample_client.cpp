@@ -18,20 +18,19 @@
 #include <iostream>
 using namespace std;
 
-int append_key (char *key_file,char *buff);
+int append_keynsend (char *key_file,char *buff);
 
 
 int main()
 {
 	int sock,len,n=0,portno,bytesSent;
-
 	struct sockaddr_in server ;
 	struct hostent *server1;
-
 	char filenameBuff[1024]="test";
 	char buff[1024];
 	char Keyfilename[100];
 	fflush(stdout);
+
 	if((sock=socket(AF_INET, SOCK_STREAM, 0)) == -1)
 	{
 		printf("socket failed because a -1 was returned");
@@ -50,7 +49,7 @@ int main()
 	strcat(buff,"$");
 	printf("enter the key filename ");
 	gets(Keyfilename);
-	append_key (Keyfilename,buff);
+	append_keynsend (Keyfilename,buff);
 	if((send(sock, buff, strlen(buff) , 0))==-1)
 	{
 		printf("sending failed");
@@ -60,7 +59,7 @@ int main()
 
 
 int
-append_key (char *key_file,char *buff)
+append_keynsend (char *key_file,char *buff)
 {
 	unsigned char key[16];
 	ifstream myfile;

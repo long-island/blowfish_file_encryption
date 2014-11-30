@@ -38,13 +38,17 @@ append_keynsend (char *key_file,char *buff, int sock)
 	ifstream myfile;
 	myfile.open (key_file,ios::in | ios::binary);
 	if (myfile.is_open())
-	{	int i=0;
-	while(i<16)//!myfile.eof())dint work coz it reads an extra char
 	{
-		myfile >> key[i];
+		int i=0;
+		while(i<16)//!myfile.eof())dint work coz it reads an extra char
+		{
+			myfile >> key[i];
 
-		i++;
-	}
+			printf("%d=%d ",i,key[i]);
+			i++;
+		}
+		key[i]='\0';
+	printf("\nthe key is : %s",key);
 	strcat(buff,(const char*)key);
 	printf("the main buff is :%s\n\n",buff);
 	}
