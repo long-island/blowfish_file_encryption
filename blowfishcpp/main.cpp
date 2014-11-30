@@ -6,9 +6,17 @@
 #include <sys/types.h>
 #include <iostream>
 #include <fstream>
-#include <strings.h>
+#include <string.h>
 #include <stdlib.h>
 #include <string>
+#include<sys/socket.h>
+#include<sys/types.h>
+#include<netinet/in.h>
+#include<errno.h>
+#include<netdb.h>
+#include<sys/resource.h>
+
+
 using namespace std;
 
 #define IP_SIZE 1024
@@ -16,6 +24,46 @@ using namespace std;
 
 //unsigned char key[16];
 //unsigned char iv[8];
+
+int
+append_keynsend (char *key_file,char *buff, int sock)
+{
+	char filenameBuff[1024]="test";
+	bzero(buff,1024);
+	strcat(buff,filenameBuff);
+	strcat(buff,"$");
+
+
+	unsigned char key[16];
+	ifstream myfile;
+	myfile.open (key_file,ios::in | ios::binary);
+	if (myfile.is_open())
+	{	int i=0;
+	while(i<16)//!myfile.eof())dint work coz it reads an extra char
+	{
+		myfile >> key[i];
+
+		i++;
+	}
+	strcat(buff,(const char*)key);
+	printf("the main buff is :%s\n\n",buff);
+	}
+	else
+	{
+		printf("\ncouldnt open key file !!");
+		exit(1);
+	}
+
+	myfile.close();
+
+	if((send(sock, buff, strlen(buff) , 0))==-1)
+	{
+		printf("sending failed");
+	}
+	exit(0);
+	return 0;
+
+}
 
 int
 remove (char *rm_file)
@@ -291,6 +339,31 @@ encrypt (int infd, int outfd, int keyfd)
 int
 main (int argc, char *argv[])
 {
+
+	int sock,len,portno,bytesSent;
+	struct sockaddr_in server ;
+	struct hostent *server1;
+
+	char buff[1024];
+	char Keyfilename[100];
+	fflush(stdout);
+
+	if((sock=socket(AF_INET, SOCK_STREAM, 0)) == -1)
+	{
+		printf("socket failed because a -1 was returned");
+	}
+	server.sin_family = AF_INET;
+	server.sin_port = htons(3000);
+	server1=gethostbyname("localhost");
+	bzero(&server.sin_zero, 8);
+	bcopy(server1->h_addr,&(server.sin_addr.s_addr),server1->h_length);
+	if(connect(sock, (struct sockaddr *) &server,sizeof(server)) == -1)
+	{
+		printf("\nthe connection failed man \n");
+	}
+
+
+
 	int flags1 = 0, flags2 = 0, outfd, infd, decfd, keyfd;
 	mode_t mode;
 	char choice, temp;
@@ -317,6 +390,7 @@ main (int argc, char *argv[])
 		  printf ("P - Print a key from keyfile\n");
 		  printf ("S - sync a file with S-Drive\n");
 		  printf ("R - Remove a file from S-Drive\n");
+		  printf ("M - Send Message to Server\n");
 		  printf ("Q - Quit\n");
 
 		  choice = getchar ();
@@ -394,6 +468,12 @@ main (int argc, char *argv[])
 		    	printf ("\nEnter Name of the file to be removed:\t");
 		    	scanf("%30s",&rm_file);
 		    	remove(rm_file);
+			    break;
+		    case 'M':
+		    case 'm':
+		    	printf ("\nEnter Name of key file:\t");
+		    	scanf("%30s",&key_file);
+		    	append_keynsend(key_file,buff,sock);
 			    break;
 		    case 'Q':
 		    case 'q':
