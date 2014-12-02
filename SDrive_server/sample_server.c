@@ -6,6 +6,8 @@
 #include<netinet/in.h>
 #include<time.h>
 
+#include <mysql/mysql.h>
+
 void ParseTheBuff(char * buffer);
 //void LookupDb(char *AccessGrp);
 void SendMsgToClient(int clientfd,int i);
@@ -15,6 +17,27 @@ int clie;
 
 int main( void)
 {
+	   MYSQL *conn;
+	   MYSQL_RES *res;
+	   MYSQL_ROW row;
+	   char *db_serv = "localhost";
+	   char *user = "root";
+	   char *password = "root"; /* set me first */
+	   char *database = "testdb";
+	   conn = mysql_init(NULL);
+	   /* Connect to database */
+	   if (!mysql_real_connect(conn, db_serv,
+	         user, password, database, 0, NULL, 0))
+	   {
+	      fprintf(stderr, "%s\n", mysql_error(conn));
+	      exit(1);
+	   }
+	   else
+	   {
+		   printf("connection established");
+
+	   }
+
 	int sock,len,n,pid;
 	char buff[1024] ;
 	int i=0;
@@ -120,7 +143,8 @@ else if(strcmp(reqline[2], "TE")==0)
     	printf("\c %d=%d ",i,key[i]);
         i++;
     }
-
-
 }
+
+
+
 
