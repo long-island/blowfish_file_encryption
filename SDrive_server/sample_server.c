@@ -7,7 +7,8 @@
 #include<time.h>
 
 void ParseTheBuff(char * buffer);
-
+//void LookupDb(char *AccessGrp);
+void SendMsgToClient(int clientfd,int i);
 int clie;
 
 
@@ -16,6 +17,7 @@ int main( void)
 {
 	int sock,len,n,pid;
 	char buff[1024] ;
+	int i=0;
 	int bytesSent;
 	struct sockaddr_in server,client;
 	fflush(stdout);
@@ -46,22 +48,16 @@ int main( void)
 
 	while(1)
 	{
+
 		if((clie = accept(sock, (struct sockaddr *) &client , &len) )== -1)
 		{
 			printf("accept failed\n");
 			exit(-1);
 		}
-
+		
 		pid=fork();
 		if(pid==0)
 		{
-			//if((read(clie,buff,sizeof(buff),0)) == -1)
-			//{
-			//printf("reading failed because a -1 was returned\n");
-			//}
-			//printf(" The message sent by the client is : %s \n \n", buff);
-
-			//TCPdaytimed(clie);
 			bzero(buff,1024);
 			if((recv(clie,buff,50,0)) == -1)
 			{
@@ -69,6 +65,7 @@ int main( void)
 			}
 
 			ParseTheBuff(buff);
+
 			close(clie);
 			exit(0);
 		}
@@ -82,27 +79,32 @@ int main( void)
 
 void ParseTheBuff(char * buffer)
 {
-	char *reqline[3];
+
+	char *reqline[5];
 	reqline[0] = strtok (buffer, "$");
-	if(strcmp(reqline[0],"Add")==0)
-	{
-		reqline[1] = strtok (NULL, " \t\n");
-		reqline[2] = strtok (NULL, " \t\n");
-	}
-	else
-	{
-		if(strcmp(reqline[0],"Remove")==0)
-		{
-			reqline[1] = strtok (NULL, " \t\n");
+	reqline[1] = strtok (NULL, "$");
+	reqline[2] = strtok (NULL, "$");
+	reqline[3] = strtok (NULL, "$");
+	reqline[4] = strtok (NULL, "$");
 
-		}
 
-	}
-	printf("the message type is :%s\n\n",reqline[0]);
-	printf("the recd. key is :%s\n\n",reqline[1]);
-	printf("the recd. filename is :%s\n\n",reqline[2]);
+
+	printf("the client id is :%s\n\n",reqline[0]);
+	printf("the access group name is :%s\n\n",reqline[1]);
+	printf("the garbage is :%s\n\n",reqline[2]);
+	printf("the filename is :%s\n\n",reqline[3]);
+	printf("the recd. key is :%s\n\n",reqline[4]);
+
+	unsigned char key[100];
+	int i=0;
+	strcpy(key,reqline[4]);
+    while(key[i]!='\0')
+    {
+
+    	printf("\c %d=%d ",i,key[i]);
+        i++;
+    }
+
 
 }
-
-
 

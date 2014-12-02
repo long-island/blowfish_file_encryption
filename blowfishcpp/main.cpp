@@ -7,7 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <string.h>
-#include <stdlib.h>
+#include<stdlib.h>
 #include <string>
 #include<sys/socket.h>
 #include<sys/types.h>
@@ -15,7 +15,7 @@
 #include<errno.h>
 #include<netdb.h>
 #include<sys/resource.h>
-
+#include<unistd.h>
 
 using namespace std;
 
@@ -30,6 +30,20 @@ append_keynsend (char *key_file,char *buff, int sock)
 {
 	char filenameBuff[1024]="test";
 	bzero(buff,1024);
+	char MsgType[3];
+	int ClientId = gethostid();
+	char chString[100];
+
+	snprintf(chString, sizeof(chString), "%d", ClientId);
+	printf ("decimal: %s\n",chString);
+
+	strcat(buff,"$");
+	strcat(buff,chString);
+	strcat(buff,"$");
+	strcat(buff,"A");
+	strcat(buff,"$");
+	strcat(buff,MsgType);
+	strcat(buff,"$");
 	strcat(buff,filenameBuff);
 	strcat(buff,"$");
 
@@ -38,18 +52,16 @@ append_keynsend (char *key_file,char *buff, int sock)
 	ifstream myfile;
 	myfile.open (key_file,ios::in | ios::binary);
 	if (myfile.is_open())
+	{	int i=0;
+	while(i<16)//!myfile.eof())dint work coz it reads an extra char
 	{
-		int i=0;
-		while(i<16)//!myfile.eof())dint work coz it reads an extra char
-		{
-			myfile >> key[i];
+		myfile >> key[i];
 
-			printf("%d=%d ",i,key[i]);
-			i++;
-		}
-		key[i]='\0';
-	printf("\nthe key is : %s",key);
+		i++;
+	}
+	key[i]='\0';
 	strcat(buff,(const char*)key);
+	strcat(buff,"$");
 	printf("the main buff is :%s\n\n",buff);
 	}
 	else
@@ -148,6 +160,7 @@ sync (char *sync_file)
 int
 print_key (char *key_file)
 {
+
 	unsigned char key[16];
 	  ifstream myfile;
 	  myfile.open (key_file,ios::in | ios::binary);
@@ -159,7 +172,10 @@ print_key (char *key_file)
 			  printf ("%d=%d ",i,key[i]);
 			  i++;
 		  }
+		      key[i]='\0';
+		  	  printf("the key is :%s",key);
 	  }
+
 	  else
 	  {
 	  printf("\ncouldnt open key file !!");
@@ -417,6 +433,7 @@ main (int argc, char *argv[])
 				    perror ("open output file2 error");
 			    printf("\ninfilefd=%d,outfilefd=%d,keyfilefd=%d\n",infd, outfd, keyfd );
 			    encrypt (infd, outfd, keyfd);
+
 			    close (keyfd);
 			    close (infd);
 			    close (outfd);
