@@ -25,12 +25,31 @@ using namespace std;
 //unsigned char key[16];
 //unsigned char iv[8];
 
+int send_init(char *buff, int sock)
+{
+	bzero(buff,1024);
+	char MsgType[3]="IN";
+	int ClientId = gethostid();
+	char chString[100];
+
+	snprintf(chString, sizeof(chString), "%d", ClientId);
+	printf ("decimal: %s\n",chString);
+	strcat(buff,"$");
+	strcat(buff,chString);
+	strcat(buff,"$");
+	strcat(buff,"A");
+	strcat(buff,"$");
+	strcat(buff,MsgType);
+	strcat(buff,"$");
+
+}
+
 int
 append_keynsend (char *key_file,char *buff, int sock)
 {
 	char filenameBuff[1024]="test";
 	bzero(buff,1024);
-	char MsgType[3];
+	char MsgType[3]="AD";
 	int ClientId = gethostid();
 	char chString[100];
 
@@ -401,6 +420,8 @@ main (int argc, char *argv[])
 
 	mode = mode | S_IRUSR;
 	mode = mode | S_IWUSR;
+
+	send_init(buff, sock);
 
 	while (!done)
 	  {
