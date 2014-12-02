@@ -88,12 +88,28 @@ void ParseTheBuff(char * buffer)
 	reqline[4] = strtok (NULL, "$");
 
 
-
 	printf("the client id is :%s\n\n",reqline[0]);
 	printf("the access group name is :%s\n\n",reqline[1]);
-	printf("the garbage is :%s\n\n",reqline[2]);
+	printf("the Message type is :%s\n\n",reqline[2]);
 	printf("the filename is :%s\n\n",reqline[3]);
 	printf("the recd. key is :%s\n\n",reqline[4]);
+
+if (strcmp(reqline[2], "IN")==0)
+{
+	// add clientid and socket desc details to socket table
+	//
+}
+else if(strcmp(reqline[2], "AD")==0)
+{
+	// send message to other clients with info about the new file
+
+}
+else if(strcmp(reqline[2], "TE")==0)
+{
+	// Remove client entry from socket table and close the corresponding SD
+
+}
+
 
 	unsigned char key[100];
 	int i=0;
