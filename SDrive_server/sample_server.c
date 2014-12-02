@@ -23,11 +23,11 @@ int main( void)
 	   char *db_serv = "localhost";
 	   char *user = "root";
 	   char *password = "root"; /* set me first */
-	   char *database = "testdb";
+	   //char *database = "testdb";
 	   conn = mysql_init(NULL);
 	   /* Connect to database */
 	   if (!mysql_real_connect(conn, db_serv,
-	         user, password, database, 0, NULL, 0))
+	         user, password, NULL, 0, NULL, 0))
 	   {
 	      fprintf(stderr, "%s\n", mysql_error(conn));
 	      exit(1);
@@ -37,6 +37,35 @@ int main( void)
 		   printf("connection established");
 
 	   }
+	   //create database
+	   if (mysql_query(conn, "CREATE DATABASE s_Drive"))
+	   {
+		   //printf("Error %u: %s\n", mysql_errno(conn), mysql_error(conn));
+		   //return(1);
+	   }
+	   printf("database created");
+	   //use database sDrive007
+	   if (mysql_query(conn, "USE s_Drive") )
+	   {
+		   printf("Error %u: %s\n", mysql_errno(conn), mysql_error(conn));
+		   return(1);
+		 }
+	   printf("s_drive database");
+
+	   //create tables
+	   if(mysql_query(conn,"CREATE TABLE Socket_table (machine_id VARCHAR(4) PRIMARY KEY, socket_desc INT)"))
+	   {
+		   //printf("Error %u: %s\n", mysql_errno(conn), mysql_error(conn));
+
+	   }
+	   printf("table socket");
+	   if(mysql_query(conn,"create table message_table(ac_group VARCHAR(1), machine_id VARCHAR(4) PRIMARY KEY,filename VARCHAR(31),filekey VARCHAR(16) )"))
+	   	   {
+	   		   //printf("Error %u: %s\n", mysql_errno(conn), mysql_error(conn));
+
+	   	   }
+	   printf("machine id table");
+
 
 	int sock,len,n,pid;
 	char buff[1024] ;
