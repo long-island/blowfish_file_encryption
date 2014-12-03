@@ -41,6 +41,10 @@ int send_init(char *buff, int sock)
 	strcat(buff,"$");
 	strcat(buff,MsgType);
 	strcat(buff,"$");
+	if((send(sock, buff, strlen(buff) , 0))==-1)
+		{
+			printf("sending failed");
+		}
 
 }
 

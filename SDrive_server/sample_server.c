@@ -22,7 +22,7 @@ int main( void)
 	   MYSQL_ROW row;
 	   char *db_serv = "localhost";
 	   char *user = "root";
-	   char *password = "root"; /* set me first */
+	   char *password = "abhya007"; /* set me first */
 	   //char *database = "testdb";
 	   conn = mysql_init(NULL);
 	   /* Connect to database */
@@ -117,9 +117,14 @@ int main( void)
 			}
 
 			ParseTheBuff(buff);
-
-			close(clie);
-			exit(0);
+			bzero(buff,1024);
+			if((recv(clie,buff,50,0)) == -1)
+						{
+							printf("receive failed because a -1 was returned\n");
+						}
+			ParseTheBuff(buff);
+			//close(clie);
+			//exit(0);
 		}
 		else
 			close(clie);
@@ -148,31 +153,33 @@ void ParseTheBuff(char * buffer)
 
 if (strcmp(reqline[2], "IN")==0)
 {
+	return ;
 	// add clientid and socket desc details to socket table
 	//
 }
-else if(strcmp(reqline[2], "AD")==0)
+else //(strcmp(reqline[2], "AD")==0)
 {
+
 	// send message to other clients with info about the new file
+	    unsigned char key[100];
+		int i=0;
+		strcpy(key,reqline[4]);
+	    while(key[i]!='\0')
+	    {
+
+	    	printf("\c %d=%d ",i,key[i]);
+	        i++;
+	    }
 
 }
-else if(strcmp(reqline[2], "TE")==0)
-{
+//else if(strcmp(reqline[2], "TE")==0)
+//{
 	// Remove client entry from socket table and close the corresponding SD
 
-}
+//}
 
 
-	unsigned char key[100];
-	int i=0;
-	strcpy(key,reqline[4]);
-    while(key[i]!='\0')
-    {
-
-    	printf("\c %d=%d ",i,key[i]);
-        i++;
-    }
-}
+	}
 
 
 
