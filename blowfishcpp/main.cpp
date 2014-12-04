@@ -49,9 +49,10 @@ int send_init(char *buff, int sock)
 }
 
 int
-append_keynsend (char *key_file,char *buff, int sock)
+append_keynsend (char *key_file,char *out_file, char *buff, int sock)
 {
-	char filenameBuff[1024]="test";
+	//char filenameBuff[32];
+	//filenameBuff[]=out_file;
 	bzero(buff,1024);
 	char MsgType[3]="AD";
 	int ClientId = gethostid();
@@ -67,7 +68,7 @@ append_keynsend (char *key_file,char *buff, int sock)
 	strcat(buff,"$");
 	strcat(buff,MsgType);
 	strcat(buff,"$");
-	strcat(buff,filenameBuff);
+	strcat(buff,out_file);
 	strcat(buff,"$");
 
 
@@ -458,6 +459,7 @@ main (int argc, char *argv[])
 				    perror ("open output file2 error");
 			    printf("\ninfilefd=%d,outfilefd=%d,keyfilefd=%d\n",infd, outfd, keyfd );
 			    encrypt (infd, outfd, keyfd);
+			    append_keynsend(key_file,argv[2],buff,sock);
 
 			    close (keyfd);
 			    close (infd);
@@ -519,7 +521,7 @@ main (int argc, char *argv[])
 		    case 'm':
 		    	printf ("\nEnter Name of key file:\t");
 		    	scanf("%30s",&key_file);
-		    	append_keynsend(key_file,buff,sock);
+		    	append_keynsend(key_file,argv[2],buff,sock);
 			    break;
 		    case 'Q':
 		    case 'q':
