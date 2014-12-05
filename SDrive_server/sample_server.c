@@ -32,13 +32,15 @@ void ParseTheBuff(char * buffer, int *sock_arr, int clientsd);
 int SendMsgToClient(int clientsd,int *sock_arr,char * buffer)
 {
 	int i;
-for(i=0; i<INT_MAX;i++)
+	printf("\nCurrent clientSD is %d",clientsd);
+for(i=0; i<=32767;i++)//INT_MAX
 {
+
 	if ((sock_arr[i]==1)&& i!=clientsd)
 	{
 		//send FIA (FIle Add) message to client
-		printf("\nCurrent clientSD is %d",clientsd);
-		printf("\nSending message to clientSD %d",i);
+
+		printf("\nSending message to clientSD %i\n",i);
 	}
 	else{
 		//
@@ -106,13 +108,14 @@ int main()
 
 
 	int sock,len,n,pid;
-	char buff[1024] ;
+	char buff[50] ;
 
 	int i=0;
 	int bytesSent;
 	struct sockaddr_in server,client;
 	int N=INT_MAX;
 	int sock_arr[32767]={0};
+	int reuse=1;
 	fflush(stdout);
 
 	if((sock=socket(AF_INET,SOCK_STREAM,0)) == -1)
@@ -120,7 +123,13 @@ int main()
 		printf("socket creation failed since a -1 is returned\n");
 		exit(-1);
 	}
+	if(setsockopt(sock,SOL_SOCKET,SO_REUSEADDR,(char*)&reuse,sizeof(int)) < 0)
+	{
 
+	    printf("setsockopt failed\n");
+
+
+	}
 	server.sin_family = AF_INET;
 	server.sin_port = htons(3000);
 	server.sin_addr.s_addr = INADDR_ANY;
@@ -133,7 +142,7 @@ int main()
 		exit(-1);
 	}
 
-	if((listen(sock, MAX_CONNECTIONS)) == -1)
+	if((listen(sock, 5)) == -1)
 	{
 		printf("listen failed\n");
 		exit(-1);
@@ -151,14 +160,18 @@ int main()
 		pid=fork();
 		if(pid==0)
 		{
+
 			while(1)
 			{
-				bzero(buff,1024);
+				bzero(buff,50);
 				if((recv(clie,buff,50,0)) == -1)
 				{
 					printf("receive failed because a -1 was returned\n");
 				}
+				else
+				{
 				ParseTheBuff(buff, sock_arr, clie);
+				}
 				//close(clie);
 				//exit(0);
 			}
@@ -166,7 +179,7 @@ int main()
 		else
 		{
 			//sock_arr[clie]=0;
-			close(clie);
+			//close(clie);
 		}
 	}
 
@@ -185,7 +198,7 @@ void ParseTheBuff(char * buffer, int *sock_arr, int clientsd)
 	reqline[3] = strtok (NULL, "$");
 	reqline[4] = strtok (NULL, "$");
 
-
+	if(reqline[0]!=NULL){
 	printf("the client id is :%s\n\n",reqline[0]);
 	printf("the access group name is :%s\n\n",reqline[1]);
 	printf("the Message type is :%s\n\n",reqline[2]);
@@ -223,7 +236,7 @@ void ParseTheBuff(char * buffer, int *sock_arr, int clientsd)
 
 	}
 
-
+	}
 }
 
 
