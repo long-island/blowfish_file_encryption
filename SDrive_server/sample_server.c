@@ -7,9 +7,17 @@
 #include<time.h>
 #include<limits.h>
 #include <mysql/mysql.h>
+#include <sys/fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include "stdbool.h"
 //#include <sys/signal.h>
 //#include <sys/wait.h>
 
+#define FILEPATH "/tmp/mmapped.bin"
+#define NUMINTS  (1000)
+#define FILESIZE (NUMINTS * sizeof(int))
 #define MAX_CONNECTIONS 100
 
 
@@ -31,9 +39,35 @@ void ParseTheBuff(char * buffer, int *sock_arr, int clientsd);
 //void LookupDb(char *AccessGrp);
 int SendMsgToClient(int clientsd,int *sock_arr,char * buffer)
 {
+	   	int mmap_i;
+	    int mmap_fd;
+	    int *mmap_map;  /* mmapped array of int's */
+
+	    mmap_fd = open(FILEPATH, O_RDONLY);
+	    if (mmap_fd == -1) {
+		perror("Error opening file for reading");
+		exit(EXIT_FAILURE);
+	    }
+
+	    mmap_map = mmap(0, FILESIZE, PROT_READ, MAP_SHARED, mmap_fd, 0);
+	    if (mmap_map == MAP_FAILED) {
+		close(mmap_fd);
+		perror("Error mmapping the file");
+		exit(EXIT_FAILURE);
+	    }
+
+	    /* Read the file int-by-int from the mmap
+	     */
+	    for (mmap_i = 1; mmap_i <=NUMINTS; ++mmap_i) {
+	    	sock_arr[mmap_i-1]=mmap_map[mmap_i];
+		//printf("%d: %d\n", mmap_i, mmap_map[mmap_i]);
+	    }
+
+
+
 	int i;
 	printf("\nCurrent clientSD is %d",clientsd);
-for(i=0; i<=32767;i++)//INT_MAX
+for(i=0; i<=NUMINTS;i++)//INT_MAX
 {
 
 	if ((sock_arr[i]==1)&& i!=clientsd)
@@ -56,7 +90,50 @@ int clie;
 
 int main()
 {
-	printf("\nHI");
+	int mmap_i;
+	int mmap_fd;
+	int mmap_result;
+	int *mmap_map;  /* mmapped array of int's */
+	mmap_fd = open(FILEPATH, O_RDWR | O_CREAT | O_TRUNC, (mode_t)0600);
+	if (mmap_fd == -1)
+	{
+		perror("Error opening file for writing");
+		exit(EXIT_FAILURE);
+	}
+	mmap_result = lseek(mmap_fd, FILESIZE-1, SEEK_SET);
+	if (mmap_result == -1) {
+		close(mmap_fd);
+		perror("Error calling lseek() to 'stretch' the file");
+		exit(EXIT_FAILURE);
+	}
+	mmap_result = write(mmap_fd, "", 1);
+	if (mmap_result != 1) {
+		close(mmap_fd);
+		perror("Error writing last byte of the file");
+		exit(EXIT_FAILURE);
+	}
+	mmap_map = mmap(0, FILESIZE, PROT_READ | PROT_WRITE, MAP_SHARED, mmap_fd, 0);
+	if (mmap_map == MAP_FAILED) {
+		close(mmap_fd);
+		perror("Error mmapping the file");
+		exit(EXIT_FAILURE);
+	}
+
+
+	for (mmap_i = 1; mmap_i<=NUMINTS; ++mmap_i)
+	{
+		mmap_map[mmap_i] = 0;
+	}
+	//fflush(mmap_map);
+
+	//Procedure to remove shared memory follows
+	//    if (munmap(map, FILESIZE) == -1)
+	//    {
+	//	perror("Error un-mmapping the file");
+	//    }
+	//    close(fd);
+	//    return 0;
+
 	MYSQL *conn;
 	MYSQL_RES *res;
 	MYSQL_ROW row;
@@ -114,7 +191,7 @@ int main()
 	int bytesSent;
 	struct sockaddr_in server,client;
 	int N=INT_MAX;
-	int sock_arr[32767]={0};
+	int sock_arr[NUMINTS]={0};
 	int reuse=1;
 	fflush(stdout);
 
@@ -125,10 +202,7 @@ int main()
 	}
 	if(setsockopt(sock,SOL_SOCKET,SO_REUSEADDR,(char*)&reuse,sizeof(int)) < 0)
 	{
-
 	    printf("setsockopt failed\n");
-
-
 	}
 	server.sin_family = AF_INET;
 	server.sin_port = htons(3000);
@@ -156,6 +230,10 @@ int main()
 			exit(-1);
 		}
 		sock_arr[clie]=1;
+
+		mmap_map[clie+1]=1;//since the mmap is used from [1 to n]
+		//fflush(mmap_map);
+
 		printf("\nNew client ! FD=%d cli_sock=%d\n",clie, ntohs(client.sin_port));
 		pid=fork();
 		if(pid==0)
