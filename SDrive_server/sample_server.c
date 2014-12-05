@@ -33,11 +33,11 @@
 //
 //}
 
-void ParseTheBuff(char * buffer, int *sock_arr, int clientsd);
+void ParseTheBuff(char * buffer, int *sock_arr, int clientsd, struct sockaddr_in *serv, int len);
 
 
 //void LookupDb(char *AccessGrp);
-int SendMsgToClient(int clientsd,int *sock_arr,char * buffer)
+int SendMsgToClient(int clientsd,int *sock_arr,char * buffer, struct sockaddr_in *serv, int len)
 {
 	   	int mmap_i;
 	    int mmap_fd;
@@ -72,9 +72,40 @@ for(i=0; i<=NUMINTS;i++)//INT_MAX
 
 	if ((sock_arr[i]==1)&& i!=clientsd)
 	{
+		if(((i, (struct sockaddr *)&serv, len)) == -1)
+		{
+			printf("\nBinding to sock %d failed\n",i);
+			exit(-1);
+		}
 		//send FIA (FIle Add) message to client
 
 		printf("\nSending message to clientSD %i\n",i);
+
+		int buff[50];
+		bzero(buff,50);
+		char MsgType[3]="FA";
+		int ClientId = gethostid();
+		char chString[100];
+
+		snprintf(chString, sizeof(chString), "%d", ClientId);
+		printf ("decimal: %s\n",chString);
+		strcat(buff,"$");
+		strcat(buff,chString);
+		strcat(buff,"$");
+		strcat(buff,"A");
+		strcat(buff,"$");
+		strcat(buff,MsgType);
+		strcat(buff,"$");
+		if((send(i, buff, strlen(buff) , 0))==-1)
+			{
+				printf("\nsending to %d failed",i);
+			}
+
+
+
+
+
+
 	}
 	else{
 		//
@@ -230,7 +261,7 @@ int main()
 			exit(-1);
 		}
 		sock_arr[clie]=1;
-
+		printf("\n clie=%d",clie);
 		mmap_map[clie+1]=1;//since the mmap is used from [1 to n]
 		//fflush(mmap_map);
 
@@ -248,7 +279,7 @@ int main()
 				}
 				else
 				{
-				ParseTheBuff(buff, sock_arr, clie);
+				ParseTheBuff(buff, sock_arr, clie, &server, len);
 				}
 				//close(clie);
 				//exit(0);
@@ -267,7 +298,7 @@ int main()
 
 
 
-void ParseTheBuff(char * buffer, int *sock_arr, int clientsd)
+void ParseTheBuff(char * buffer, int *sock_arr, int clientsd, struct sockaddr_in *serv, int len)
 {
 	char *reqline[5];
 	reqline[0] = strtok (buffer, "$");
@@ -302,7 +333,7 @@ void ParseTheBuff(char * buffer, int *sock_arr, int clientsd)
 			printf(" %d=%d ",i,key[i]);
 			i++;
 		}
-		SendMsgToClient(clientsd,sock_arr,buffer);
+		SendMsgToClient(clientsd,sock_arr,buffer, &serv, len);
 
 	}
 	else if(strcmp(reqline[2], "TE")==0)

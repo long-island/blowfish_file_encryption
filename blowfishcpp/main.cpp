@@ -25,6 +25,33 @@ using namespace std;
 //unsigned char key[16];
 //unsigned char iv[8];
 
+void ParseTheBuff(char * buffer)
+{
+	char *reqline[5];
+	reqline[0] = strtok (buffer, "$");
+	reqline[1] = strtok (NULL, "$");
+	reqline[2] = strtok (NULL, "$");
+	reqline[3] = strtok (NULL, "$");
+	reqline[4] = strtok (NULL, "$");
+
+
+	//printf("the client id is :%s\n\n",reqline[0]);
+	//printf("the access group name is :%s\n\n",reqline[1]);
+	printf("the Message type is :%s\n\n",reqline[2]);
+	printf("the filename is :%s\n\n",reqline[3]);
+	printf("the recd. key is :%s\n\n",reqline[4]);
+
+	ofstream myfile;
+	myfile.open ("key_decrypt",ios::out | ios::binary | ios::trunc);
+	myfile <<reqline[4] ;
+
+
+	//sync ();
+
+
+}
+
+
 int send_init(char *buff, int sock)
 {
 	bzero(buff,1024);
@@ -428,8 +455,13 @@ main (int argc, char *argv[])
 
 	send_init(buff, sock);
 
+//	int flags = fcntl(sock, F_GETFL, 0);
+//	fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+	char buffer[1024];
+
 	while (!done)
 	  {
+
 		  printf ("\nE - Encrypt a file\n");
 		  printf ("D - Decrypt a file\n");
 		  printf ("G - Generate a key\n");
@@ -528,11 +560,28 @@ main (int argc, char *argv[])
 		    	exit(0);
 			    done = 1;
 			    break;
+		    case 'X':
+		    case 'x':
+				 while(1)
+				 {
+						if((recv(sock,buffer,50,0)) == -1)
+									{
+									   printf("receive failed because a -1 was returned\n");
+									}
+								ParseTheBuff(buffer);
+				 }
+			    break;
 
 		    default:
 			    printf ("\nERROR: Unrecognized command. %c  Try again.\n",choice);
 			    break;
 		    }
+
+
+
+
+
+
 	  }
 	return 0;
 }
