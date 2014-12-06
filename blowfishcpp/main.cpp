@@ -25,6 +25,9 @@ using namespace std;
 //unsigned char key[16];
 //unsigned char iv[8];
 
+int
+decrypt (int infd, int outfd, int keyfd);
+
 void ParseTheBuff(char * buffer)
 {
 	ofstream kfile;
@@ -54,6 +57,29 @@ void ParseTheBuff(char * buffer)
 	{
 		perror("\n Error creating key file ");
 	}
+
+	mode_t mode;
+	int keyfd, outfd, decfd=-1;
+	int flags1 = 0, flags2 = 0;
+	flags1 = flags1 | O_RDONLY;
+	flags2 = flags2 | O_RDONLY;
+	flags2 = flags2 | O_WRONLY;
+	flags2 = flags2 | O_CREAT;
+
+	mode = mode | S_IRUSR;
+	mode = mode | S_IWUSR;
+
+
+	if ((keyfd = open ("key_decrypt", flags1, mode)) == -1)
+		perror ("open key file error");
+
+	if ((outfd = open (reqline[3], flags1, mode)) == -1)
+		perror ("open output file1 error");
+
+    if ((decfd = open ("decrypted_list", flags2, mode)) == -1)
+	    perror ("open output file2 error");
+//printf("\ninfilefd=%d,outfilefd=%d,keyfilefd=%d\n",decfd, outfd, keyfd );
+	decrypt (outfd, decfd, keyfd);
 }
 
 
