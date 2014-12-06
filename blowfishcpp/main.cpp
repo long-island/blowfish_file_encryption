@@ -27,6 +27,8 @@ using namespace std;
 
 void ParseTheBuff(char * buffer)
 {
+	ofstream kfile;
+	kfile.open ("key_decrypt",ios::out | ios::binary | ios::trunc);
 	char *reqline[5];
 	reqline[0] = strtok (buffer, "$");
 	reqline[1] = strtok (NULL, "$");
@@ -41,14 +43,17 @@ void ParseTheBuff(char * buffer)
 	printf("the filename is :%s\n\n",reqline[3]);
 	printf("the recd. key is :%s\n\n",reqline[4]);
 
-	ofstream myfile;
-	myfile.open ("key_decrypt",ios::out | ios::binary | ios::trunc);
-	myfile <<reqline[4] ;
-
-
-	//sync ();
-
-
+	if (kfile.is_open())
+	{
+	kfile <<reqline[4] ;
+	kfile.flush();
+	kfile.close();
+	printf("\nkey stored in file: key_decrypt");
+	}
+	else
+	{
+		perror("\n Error creating key file ");
+	}
 }
 
 
@@ -253,6 +258,10 @@ generate_key (char *key_file)
 
 	  ofstream myfile;
 	  myfile.open (key_file,ios::out | ios::binary | ios::trunc);
+	  if (!myfile.is_open()) {
+	  	    perror( "Can't open output file !\n");
+	  	    exit(1);
+	  	}
 
 
 	  unsigned char key[16];
@@ -263,7 +272,7 @@ generate_key (char *key_file)
 	if ((read (fd, key, 16)) == -1)
 		perror ("read key error");
 //	file_stream.write((unsigned char *)key,sizeof(key));
-	sleep(1);
+	//sleep(1);
 	myfile << key;
 
 
@@ -285,7 +294,7 @@ generate_key (char *key_file)
 	printf ("\n ------ \n");
 	close (fd);
 	myfile.flush();
-	sleep(1);
+	//sleep(1);
 	myfile.close();
 
 
@@ -462,13 +471,14 @@ main (int argc, char *argv[])
 	while (!done)
 	  {
 
-		  printf ("\nE - Encrypt a file\n");
+		  printf ("\nE - Encrypt and send a file to S-Drive\n");
 		  printf ("D - Decrypt a file\n");
 		  printf ("G - Generate a key\n");
 		  printf ("P - Print a key from keyfile\n");
 		  printf ("S - sync a file with S-Drive\n");
 		  printf ("R - Remove a file from S-Drive\n");
 		  printf ("M - Send Message to Server\n");
+		  printf ("X - Listen for messages\n");
 		  printf ("Q - Quit\n");
 
 		  choice = getchar ();
@@ -491,11 +501,13 @@ main (int argc, char *argv[])
 				    perror ("open output file2 error");
 			    printf("\ninfilefd=%d,outfilefd=%d,keyfilefd=%d\n",infd, outfd, keyfd );
 			    encrypt (infd, outfd, keyfd);
+			    sync(argv[2]);
 			    append_keynsend(key_file,argv[2],buff,sock);
 
 			    close (keyfd);
 			    close (infd);
 			    close (outfd);
+
 			    break;
 
 		    case 'd':
