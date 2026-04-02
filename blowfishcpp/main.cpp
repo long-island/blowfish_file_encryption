@@ -58,7 +58,7 @@ void ParseTheBuff(char * buffer)
 		perror("\n Error creating key file ");
 	}
 
-	mode_t mode;
+	mode_t mode = 0;
 	int keyfd, outfd, decfd=-1;
 	int flags1 = 0, flags2 = 0;
 	flags1 = flags1 | O_RDONLY;
@@ -83,6 +83,21 @@ void ParseTheBuff(char * buffer)
 }
 
 
+/* Returns 1 if the filename contains only safe characters, 0 otherwise.
+ * Rejects shell metacharacters to prevent command injection via system(). */
+static int is_safe_filename(const char *name)
+{
+	if (!name || *name == '\0') return 0;
+	for (const char *p = name; *p; p++) {
+		if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+		    (*p >= '0' && *p <= '9') || *p == '_' || *p == '-' ||
+		    *p == '.' || *p == '/')
+			continue;
+		return 0;
+	}
+	return 1;
+}
+
 int send_init(char *buff, int sock)
 {
 	bzero(buff,1024);
@@ -103,7 +118,7 @@ int send_init(char *buff, int sock)
 		{
 			printf("sending failed");
 		}
-
+	return 0;
 }
 
 int
@@ -130,7 +145,7 @@ append_keynsend (char *key_file,char *out_file, char *buff, int sock)
 	strcat(buff,"$");
 
 
-	unsigned char key[16];
+	unsigned char key[17];
 	ifstream myfile;
 	myfile.open (key_file,ios::in | ios::binary);
 	if (myfile.is_open())
@@ -158,7 +173,6 @@ append_keynsend (char *key_file,char *out_file, char *buff, int sock)
 	{
 		printf("sending failed");
 	}
-	exit(0);
 	return 0;
 
 }
@@ -166,6 +180,10 @@ append_keynsend (char *key_file,char *out_file, char *buff, int sock)
 int
 remove (char *rm_file)
 {
+	if (!is_safe_filename(rm_file)) {
+		printf("Error: unsafe filename rejected: %s\n", rm_file);
+		return -1;
+	}
 
 	std::string rm_cmd ("");
 	std::string sync_cmd ("");
@@ -204,6 +222,10 @@ remove (char *rm_file)
 int
 sync (char *sync_file)
 {
+	if (!is_safe_filename(sync_file)) {
+		printf("Error: unsafe filename rejected: %s\n", sync_file);
+		return -1;
+	}
 
 	std::string cp_cmd ("");
 	std::string sync_cmd ("");
@@ -243,7 +265,7 @@ int
 print_key (char *key_file)
 {
 
-	unsigned char key[16];
+	unsigned char key[17];
 	  ifstream myfile;
 	  myfile.open (key_file,ios::in | ios::binary);
 	  if (myfile.is_open())
@@ -265,9 +287,7 @@ print_key (char *key_file)
 	  }
 
 	  myfile.close();
-	exit(0);
 	return 0;
-//	}
 }
 
 int
@@ -309,7 +329,7 @@ generate_key (char *key_file)
 	printf("128 bit key:\n");
 	for (i = 0; i < 16; i++)
 		printf ("%d \t", key[i]);
-	printf("\nSize of key is %d",sizeof(key));
+	printf("\nSize of key is %zu",(size_t)sizeof(key));
 	printf ("\n ------ \n");
 
 
@@ -325,7 +345,6 @@ generate_key (char *key_file)
 
 
 
-	exit(0);
 	return 0;
 
 }
@@ -350,9 +369,9 @@ decrypt (int infd, int outfd, int keyfd)
 		{
 		printf ("%d=%d ",i,key[i]);
 	}
-	EVP_CIPHER_CTX ctx;
-	EVP_CIPHER_CTX_init (&ctx);
-	EVP_DecryptInit (&ctx, EVP_bf_cbc (), key, iv);
+	EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+	if (!ctx) { perror("EVP_CIPHER_CTX_new failed"); exit(1); }
+	EVP_DecryptInit (ctx, EVP_bf_cbc (), key, iv);
 
 	for (;;)
 	  {
@@ -367,23 +386,28 @@ decrypt (int infd, int outfd, int keyfd)
 
 		  bzero (&outbuf, IP_SIZE);
 
-		  if (EVP_DecryptUpdate (&ctx, outbuf, &olen, (const unsigned char*)inbuff, n) != 1)
+		  if (EVP_DecryptUpdate (ctx, outbuf, &olen, (const unsigned char*)inbuff, n) != 1)
 		    {
 			    printf ("error in decrypt update\n");
+			    EVP_CIPHER_CTX_free(ctx);
 			    return 0;
 		    }
 
-		  if (EVP_DecryptFinal (&ctx, outbuf + olen, &tlen) != 1)
-		    {
-			    printf ("error in decrypt final\n");
-			    return 0;
-		    }
-		  olen += tlen;
 		  if ((n = write (outfd, outbuf, olen)) == -1)
 			  perror ("write error");
 	  }
 
-	EVP_CIPHER_CTX_cleanup (&ctx);
+	  bzero (&outbuf, IP_SIZE);
+	  if (EVP_DecryptFinal (ctx, outbuf, &tlen) != 1)
+	    {
+		    printf ("error in decrypt final\n");
+		    EVP_CIPHER_CTX_free(ctx);
+		    return 0;
+	    }
+	  if (tlen > 0 && (write (outfd, outbuf, tlen)) == -1)
+		  perror ("write error");
+
+	EVP_CIPHER_CTX_free(ctx);
 	return 1;
 }
 
@@ -407,9 +431,9 @@ encrypt (int infd, int outfd, int keyfd)
 		{
 		printf ("%d=%d ",i,key[i]);
 	}
-	EVP_CIPHER_CTX ctx;
-	EVP_CIPHER_CTX_init (&ctx);
-	EVP_EncryptInit (&ctx, EVP_bf_cbc (), key, iv);
+	EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+	if (!ctx) { perror("EVP_CIPHER_CTX_new failed"); exit(1); }
+	EVP_EncryptInit (ctx, EVP_bf_cbc (), key, iv);
 
 	for (;;)
 	  {
@@ -423,22 +447,27 @@ encrypt (int infd, int outfd, int keyfd)
 		  else if (n == 0)
 			  break;
 
-		  if (EVP_EncryptUpdate (&ctx, outbuf, &olen, (const unsigned char*)inbuff, n) != 1)
+		  if (EVP_EncryptUpdate (ctx, outbuf, &olen, (const unsigned char*)inbuff, n) != 1)
 		    {
 			    printf ("error in encrypt update\n");
+			    EVP_CIPHER_CTX_free(ctx);
 			    return 0;
 		    }
 
-		  if (EVP_EncryptFinal (&ctx, outbuf + olen, &tlen) != 1)
-		    {
-			    printf ("error in encrypt final\n");
-			    return 0;
-		    }
-		  olen += tlen;
 		  if ((n = write (outfd, outbuf, olen)) == -1)
 			  perror ("write error");
 	  }
-	EVP_CIPHER_CTX_cleanup (&ctx);
+
+	  if (EVP_EncryptFinal (ctx, outbuf, &tlen) != 1)
+	    {
+		    printf ("error in encrypt final\n");
+		    EVP_CIPHER_CTX_free(ctx);
+		    return 0;
+	    }
+	  if (tlen > 0 && (write (outfd, outbuf, tlen)) == -1)
+		  perror ("write error");
+
+	EVP_CIPHER_CTX_free(ctx);
 	return 1;
 }
 
@@ -516,7 +545,7 @@ main (int argc, char *argv[])
 		    case 'E':
 
 		    	printf ("\nEnter Name of key file:\t");
-		    	scanf("%30s",&key_file);
+		    	scanf("%30s",key_file);
 		    	if ((keyfd = open (key_file, flags1, mode)) == -1)
 		    					    perror ("open key file error");
 
@@ -539,7 +568,7 @@ main (int argc, char *argv[])
 		    case 'd':
 		    case 'D':
 		    	printf ("\nEnter Name of key file:\t");
-		    			    	scanf("%30s",&key_file);
+		    			    	scanf("%30s",key_file);
 		    			    	if ((keyfd = open (key_file, flags1, mode)) == -1)
 		    			    					    perror ("open key file error");
 
@@ -562,7 +591,7 @@ main (int argc, char *argv[])
 		    case 'g':
 		    case 'G':
 		    	printf ("\nEnter Name of key file:\t");
-		    	scanf("%30s",&key_file);
+		    	scanf("%30s",key_file);
 //		    	if ((keyfd = open (key_file, flags2, mode)) == -1)
 //		    					    perror ("open key file error");
 			    generate_key (key_file);
@@ -570,7 +599,7 @@ main (int argc, char *argv[])
 		    case 'p' :
 		    case 'P' :
 		    	printf ("\nEnter Name of key file:\t");
-		    			    	scanf("%30s",&key_file);
+		    			    	scanf("%30s",key_file);
 		    	//		    	if ((keyfd = open (key_file, flags2, mode)) == -1)
 		    	//		    					    perror ("open key file error");
 		    				    print_key(key_file);
@@ -578,19 +607,19 @@ main (int argc, char *argv[])
 		    case 'S':
 		    case 's':
 		    	printf ("\nEnter Name of the file to be synced:\t");
-		    	scanf("%30s",&sync_file);
+		    	scanf("%30s",sync_file);
 		    	sync(sync_file);
 			    break;
 		    case 'R':
 		    case 'r':
 		    	printf ("\nEnter Name of the file to be removed:\t");
-		    	scanf("%30s",&rm_file);
+		    	scanf("%30s",rm_file);
 		    	remove(rm_file);
 			    break;
 		    case 'M':
 		    case 'm':
 		    	printf ("\nEnter Name of key file:\t");
-		    	scanf("%30s",&key_file);
+		    	scanf("%30s",key_file);
 		    	append_keynsend(key_file,argv[2],buff,sock);
 			    break;
 		    case 'Q':

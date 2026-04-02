@@ -48,7 +48,13 @@ int main()
 	strcat(buff,filenameBuff);
 	strcat(buff,"$");
 	printf("enter the key filename ");
-	gets(Keyfilename);
+	if (fgets(Keyfilename, sizeof(Keyfilename), stdin) != NULL)
+	{
+		/* strip trailing newline left by fgets */
+		size_t nl = strlen(Keyfilename);
+		if (nl > 0 && Keyfilename[nl - 1] == '\n')
+			Keyfilename[nl - 1] = '\0';
+	}
 	append_keynsend (Keyfilename,buff);
 	if((send(sock, buff, strlen(buff) , 0))==-1)
 	{
@@ -61,7 +67,7 @@ int main()
 int
 append_keynsend (char *key_file,char *buff)
 {
-	unsigned char key[16];
+	unsigned char key[17];  /* 16 key bytes + 1 null terminator */
 	ifstream myfile;
 	myfile.open (key_file,ios::in | ios::binary);
 	if (myfile.is_open())
@@ -75,7 +81,8 @@ append_keynsend (char *key_file,char *buff)
 		//printf ("%d=%d ",i,key[i]);
 		i++;
 	}
-	strcat(buff,(const char*)key);
+	key[16] = '\0';  /* ensure null termination before string operations */
+	strncat(buff,(const char*)key, 16);
 	printf("the main buff is :%s\n\n",buff);
 	}
 	else
@@ -85,7 +92,5 @@ append_keynsend (char *key_file,char *buff)
 	}
 
 	myfile.close();
-	exit(0);
 	return 0;
-	//	}
 }
