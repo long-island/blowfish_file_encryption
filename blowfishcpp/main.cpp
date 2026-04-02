@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <iostream>
 #include <fstream>
 #include <string.h>
@@ -58,7 +59,7 @@ void ParseTheBuff(char * buffer)
 		perror("\n Error creating key file ");
 	}
 
-	mode_t mode;
+	mode_t mode = S_IRUSR | S_IWUSR;  /* 0600: user read/write */
 	int keyfd, outfd, decfd=-1;
 	int flags1 = 0, flags2 = 0;
 	flags1 = flags1 | O_RDONLY;
@@ -83,6 +84,38 @@ void ParseTheBuff(char * buffer)
 }
 
 
+/* Returns 1 if the filename contains only safe characters, 0 otherwise.
+ * Only alphanumerics, underscores, hyphens and dots are permitted.
+ * Slashes are rejected to prevent directory traversal. */
+static int is_safe_filename(const char *name)
+{
+	if (!name || *name == '\0') return 0;
+	for (const char *p = name; *p; p++) {
+		if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+		    (*p >= '0' && *p <= '9') || *p == '_' || *p == '-' ||
+		    *p == '.')
+			continue;
+		return 0;
+	}
+	return 1;
+}
+
+/* Run a command as a child process using execvp (no shell involved).
+ * argv must be a NULL-terminated array.  Returns 0 on success, -1 on error. */
+static int run_cmd(const char *file, char *const argv[])
+{
+	pid_t pid = fork();
+	if (pid == -1) { perror("fork"); return -1; }
+	if (pid == 0) {
+		execvp(file, argv);
+		perror("execvp");
+		_exit(127);
+	}
+	int status;
+	if (waitpid(pid, &status, 0) == -1) { perror("waitpid"); return -1; }
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
+}
+
 int send_init(char *buff, int sock)
 {
 	bzero(buff,1024);
@@ -103,7 +136,7 @@ int send_init(char *buff, int sock)
 		{
 			printf("sending failed");
 		}
-
+	return 0;
 }
 
 int
@@ -130,7 +163,7 @@ append_keynsend (char *key_file,char *out_file, char *buff, int sock)
 	strcat(buff,"$");
 
 
-	unsigned char key[16];
+	unsigned char key[17];
 	ifstream myfile;
 	myfile.open (key_file,ios::in | ios::binary);
 	if (myfile.is_open())
@@ -158,7 +191,6 @@ append_keynsend (char *key_file,char *out_file, char *buff, int sock)
 	{
 		printf("sending failed");
 	}
-	exit(0);
 	return 0;
 
 }
@@ -166,37 +198,30 @@ append_keynsend (char *key_file,char *out_file, char *buff, int sock)
 int
 remove (char *rm_file)
 {
-
-	std::string rm_cmd ("");
-	std::string sync_cmd ("");
-	//std::string cp ("cp");
-	std::string rm ("rm");
-	std::string space (" ");
-	std::string PATH ("/home/bala/S_drive/");
-	std::string cd ("cd");
-	std::string sep (" ; ");
-	sync_cmd+=cd+space+PATH+sep+"./grive";
-	rm_cmd+=rm+space+PATH+rm_file;
-
-	std::cout << sync_cmd.c_str() << endl;
-	if(system(sync_cmd.c_str())==-1)
-		{
-			perror("system(3) for sync failed");
-		}
-
-
-	std::cout << rm_cmd.c_str() << endl;
-	if(system(rm_cmd.c_str())==-1)
-	{
-		perror("system(3) failed");
+	if (!is_safe_filename(rm_file)) {
+		printf("Error: unsafe filename rejected: %s\n", rm_file);
+		return -1;
 	}
-	else
-	{
-		std::cout << sync_cmd.c_str() << endl;
-		if(system(sync_cmd.c_str())==-1)
-			{
-				perror("system(3) for sync failed");
-			}
+
+	static const char *SDRIVE_PATH = "/home/bala/S_drive/";
+
+	/* pre-sync: pull latest state from S-Drive */
+	/* execvp requires char*const[]; const_cast is safe: execvp never writes through argv */
+	char *grive_args[] = { const_cast<char*>("./grive"), NULL };
+	if (chdir(SDRIVE_PATH) == -1) { perror("chdir"); return -1; }
+	if (run_cmd("./grive", grive_args) != 0)
+		perror("grive pre-sync failed");
+
+	/* remove the file */
+	char rm_path[512];
+	snprintf(rm_path, sizeof(rm_path), "%s%s", SDRIVE_PATH, rm_file);
+	char *rm_args[] = { const_cast<char*>("rm"), rm_path, NULL };
+	if (run_cmd("rm", rm_args) != 0)
+		perror("rm failed");
+	else {
+		/* post-sync: push removal to S-Drive */
+		if (run_cmd("./grive", grive_args) != 0)
+			perror("grive post-sync failed");
 	}
 	return 0;
 }
@@ -204,37 +229,27 @@ remove (char *rm_file)
 int
 sync (char *sync_file)
 {
-
-	std::string cp_cmd ("");
-	std::string sync_cmd ("");
-	std::string cp ("cp");
-	std::string space (" ");
-	std::string src (sync_file);
-	std::cout << src << endl;
-	std::string PATH ("/home/bala/S_drive/");
-	std::string cd ("cd");
-	std::string sep (" ; ");
-	sync_cmd+=cd+space+PATH+sep+"./grive";
-
-	std::cout << sync_cmd.c_str() << endl;
-	if(system(sync_cmd.c_str())==-1)
-		{
-			perror("system(3) for sync failed");
-		}
-
-	cp_cmd+=cp+space+src+space+PATH;
-	std::cout << cp_cmd.c_str() << endl;
-	if(system(cp_cmd.c_str())==-1)
-	{
-		perror("system(3) failed");
+	if (!is_safe_filename(sync_file)) {
+		printf("Error: unsafe filename rejected: %s\n", sync_file);
+		return -1;
 	}
-	else
-	{
-		std::cout << sync_cmd.c_str() << endl;
-		if(system(sync_cmd.c_str())==-1)
-			{
-				perror("system(3) for sync failed");
-			}
+
+	static const char *SDRIVE_PATH = "/home/bala/S_drive/";
+
+	/* pre-sync: pull latest state from S-Drive */
+	char *grive_args[] = { const_cast<char*>("./grive"), NULL };
+	if (chdir(SDRIVE_PATH) == -1) { perror("chdir"); return -1; }
+	if (run_cmd("./grive", grive_args) != 0)
+		perror("grive pre-sync failed");
+
+	/* copy the file into S-Drive */
+	char *cp_args[] = { const_cast<char*>("cp"), sync_file, const_cast<char*>(SDRIVE_PATH), NULL };
+	if (run_cmd("cp", cp_args) != 0)
+		perror("cp failed");
+	else {
+		/* post-sync: push new file to S-Drive */
+		if (run_cmd("./grive", grive_args) != 0)
+			perror("grive post-sync failed");
 	}
 	return 0;
 }
@@ -243,7 +258,7 @@ int
 print_key (char *key_file)
 {
 
-	unsigned char key[16];
+	unsigned char key[17];
 	  ifstream myfile;
 	  myfile.open (key_file,ios::in | ios::binary);
 	  if (myfile.is_open())
@@ -265,9 +280,7 @@ print_key (char *key_file)
 	  }
 
 	  myfile.close();
-	exit(0);
 	return 0;
-//	}
 }
 
 int
@@ -309,7 +322,7 @@ generate_key (char *key_file)
 	printf("128 bit key:\n");
 	for (i = 0; i < 16; i++)
 		printf ("%d \t", key[i]);
-	printf("\nSize of key is %d",sizeof(key));
+	printf("\nSize of key is %zu", sizeof(key));
 	printf ("\n ------ \n");
 
 
@@ -325,7 +338,6 @@ generate_key (char *key_file)
 
 
 
-	exit(0);
 	return 0;
 
 }
@@ -350,9 +362,9 @@ decrypt (int infd, int outfd, int keyfd)
 		{
 		printf ("%d=%d ",i,key[i]);
 	}
-	EVP_CIPHER_CTX ctx;
-	EVP_CIPHER_CTX_init (&ctx);
-	EVP_DecryptInit (&ctx, EVP_bf_cbc (), key, iv);
+	EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+	if (!ctx) { fprintf(stderr, "EVP_CIPHER_CTX_new failed\n"); exit(1); }
+	EVP_DecryptInit (ctx, EVP_bf_cbc (), key, iv);
 
 	for (;;)
 	  {
@@ -367,23 +379,28 @@ decrypt (int infd, int outfd, int keyfd)
 
 		  bzero (&outbuf, IP_SIZE);
 
-		  if (EVP_DecryptUpdate (&ctx, outbuf, &olen, (const unsigned char*)inbuff, n) != 1)
+		  if (EVP_DecryptUpdate (ctx, outbuf, &olen, (const unsigned char*)inbuff, n) != 1)
 		    {
 			    printf ("error in decrypt update\n");
+			    EVP_CIPHER_CTX_free(ctx);
 			    return 0;
 		    }
 
-		  if (EVP_DecryptFinal (&ctx, outbuf + olen, &tlen) != 1)
-		    {
-			    printf ("error in decrypt final\n");
-			    return 0;
-		    }
-		  olen += tlen;
 		  if ((n = write (outfd, outbuf, olen)) == -1)
 			  perror ("write error");
 	  }
 
-	EVP_CIPHER_CTX_cleanup (&ctx);
+	  bzero (&outbuf, IP_SIZE);
+	  if (EVP_DecryptFinal (ctx, outbuf, &tlen) != 1)
+	    {
+		    printf ("error in decrypt final\n");
+		    EVP_CIPHER_CTX_free(ctx);
+		    return 0;
+	    }
+	  if (tlen > 0 && (write (outfd, outbuf, tlen)) == -1)
+		  perror ("write error");
+
+	EVP_CIPHER_CTX_free(ctx);
 	return 1;
 }
 
@@ -407,9 +424,9 @@ encrypt (int infd, int outfd, int keyfd)
 		{
 		printf ("%d=%d ",i,key[i]);
 	}
-	EVP_CIPHER_CTX ctx;
-	EVP_CIPHER_CTX_init (&ctx);
-	EVP_EncryptInit (&ctx, EVP_bf_cbc (), key, iv);
+	EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+	if (!ctx) { fprintf(stderr, "EVP_CIPHER_CTX_new failed\n"); exit(1); }
+	EVP_EncryptInit (ctx, EVP_bf_cbc (), key, iv);
 
 	for (;;)
 	  {
@@ -423,22 +440,27 @@ encrypt (int infd, int outfd, int keyfd)
 		  else if (n == 0)
 			  break;
 
-		  if (EVP_EncryptUpdate (&ctx, outbuf, &olen, (const unsigned char*)inbuff, n) != 1)
+		  if (EVP_EncryptUpdate (ctx, outbuf, &olen, (const unsigned char*)inbuff, n) != 1)
 		    {
 			    printf ("error in encrypt update\n");
+			    EVP_CIPHER_CTX_free(ctx);
 			    return 0;
 		    }
 
-		  if (EVP_EncryptFinal (&ctx, outbuf + olen, &tlen) != 1)
-		    {
-			    printf ("error in encrypt final\n");
-			    return 0;
-		    }
-		  olen += tlen;
 		  if ((n = write (outfd, outbuf, olen)) == -1)
 			  perror ("write error");
 	  }
-	EVP_CIPHER_CTX_cleanup (&ctx);
+
+	  if (EVP_EncryptFinal (ctx, outbuf, &tlen) != 1)
+	    {
+		    printf ("error in encrypt final\n");
+		    EVP_CIPHER_CTX_free(ctx);
+		    return 0;
+	    }
+	  if (tlen > 0 && (write (outfd, outbuf, tlen)) == -1)
+		  perror ("write error");
+
+	EVP_CIPHER_CTX_free(ctx);
 	return 1;
 }
 
@@ -516,7 +538,7 @@ main (int argc, char *argv[])
 		    case 'E':
 
 		    	printf ("\nEnter Name of key file:\t");
-		    	scanf("%30s",&key_file);
+		    	scanf("%30s",key_file);
 		    	if ((keyfd = open (key_file, flags1, mode)) == -1)
 		    					    perror ("open key file error");
 
@@ -539,7 +561,7 @@ main (int argc, char *argv[])
 		    case 'd':
 		    case 'D':
 		    	printf ("\nEnter Name of key file:\t");
-		    			    	scanf("%30s",&key_file);
+		    			    	scanf("%30s",key_file);
 		    			    	if ((keyfd = open (key_file, flags1, mode)) == -1)
 		    			    					    perror ("open key file error");
 
@@ -562,7 +584,7 @@ main (int argc, char *argv[])
 		    case 'g':
 		    case 'G':
 		    	printf ("\nEnter Name of key file:\t");
-		    	scanf("%30s",&key_file);
+		    	scanf("%30s",key_file);
 //		    	if ((keyfd = open (key_file, flags2, mode)) == -1)
 //		    					    perror ("open key file error");
 			    generate_key (key_file);
@@ -570,7 +592,7 @@ main (int argc, char *argv[])
 		    case 'p' :
 		    case 'P' :
 		    	printf ("\nEnter Name of key file:\t");
-		    			    	scanf("%30s",&key_file);
+		    			    	scanf("%30s",key_file);
 		    	//		    	if ((keyfd = open (key_file, flags2, mode)) == -1)
 		    	//		    					    perror ("open key file error");
 		    				    print_key(key_file);
@@ -578,19 +600,19 @@ main (int argc, char *argv[])
 		    case 'S':
 		    case 's':
 		    	printf ("\nEnter Name of the file to be synced:\t");
-		    	scanf("%30s",&sync_file);
+		    	scanf("%30s",sync_file);
 		    	sync(sync_file);
 			    break;
 		    case 'R':
 		    case 'r':
 		    	printf ("\nEnter Name of the file to be removed:\t");
-		    	scanf("%30s",&rm_file);
+		    	scanf("%30s",rm_file);
 		    	remove(rm_file);
 			    break;
 		    case 'M':
 		    case 'm':
 		    	printf ("\nEnter Name of key file:\t");
-		    	scanf("%30s",&key_file);
+		    	scanf("%30s",key_file);
 		    	append_keynsend(key_file,argv[2],buff,sock);
 			    break;
 		    case 'Q':

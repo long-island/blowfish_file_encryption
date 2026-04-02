@@ -1,0 +1,10 @@
+# Build artifacts
+SDrive_server/Debug/sample_server
+SDrive_client/Debug/
+blowfishcpp/Debug/
+*.o
+*.d
+
+# Executables (compiled outputs)
+SDrive_client/sample_client
+blowfishcpp/blowfishcpp

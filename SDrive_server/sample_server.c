@@ -1,12 +1,12 @@
 #include<string.h>
 #include<stdio.h>
 #include<stdlib.h>
+#include<stdint.h>
 #include<sys/socket.h>
 #include<sys/types.h>
 #include<netinet/in.h>
 #include<time.h>
 #include<limits.h>
-#include <mysql/mysql.h>
 #include <sys/fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -18,7 +18,7 @@
 
 //#include <sys/signal.h>
 //#include <sys/wait.h>
-void* doSomeThing(int);
+void* doSomeThing(void*);
 
 #define FILEPATH "/tmp/mmapped.bin"
 #define NUMINTS  (1000)
@@ -55,7 +55,7 @@ for(i=0; i<=NUMINTS;i++)//INT_MAX
 
 		//printf("\nSending message to clientSD %i\n",i);
 
-		int buff[50];
+		char buff[50];
 		bzero(buff,50);
 		char MsgType[3]="FA";
 		int ClientId = gethostid();
@@ -114,6 +114,7 @@ int main()
 	//int sock_arr[NUMINTS]={0};
 	int reuse=1;
         pthread_t tid[3];
+        socklen_t slen;
 
         //struct shared
         //{
@@ -150,8 +151,9 @@ int main()
 	server.sin_addr.s_addr = INADDR_ANY;
 	bzero(&server.sin_zero, 8);
 	len = sizeof(server);
+	slen = (socklen_t)len;
 
-	if((bind(sock, (struct sockaddr *)&server, len)) == -1)
+	if((bind(sock, (struct sockaddr *)&server, (socklen_t)len)) == -1)
 	{
 		printf("the binding process failed since a -1 is returned\n");
 		exit(-1);
@@ -167,7 +169,7 @@ int main()
         int err;
 	while(1)
 	{
-		if((clie = accept(sock, (struct sockaddr *) &client , &len) )== -1)
+		if((clie = accept(sock, (struct sockaddr *) &client , &slen) )== -1)
 		{
 			printf("accept failed\n");
 			exit(-1);
@@ -178,7 +180,7 @@ int main()
 		//memcpy(g_shar.clientStruct[clie],&client,sizeof(client))
 		//memcpy(shared_mem, &g_shar, sizeof(g_shar))
                // while(i < 3)
-                   err = pthread_create(&(tid[i]), NULL, &doSomeThing, clie);
+                   err = pthread_create(&(tid[i]), NULL, &doSomeThing, (void*)(intptr_t)clie);
                    if (err != 0)
                    printf("\ncan't create thread :[%s]", strerror(err));
                    else
@@ -224,9 +226,9 @@ int main()
 	//exit(0);
 }
 
-void* doSomeThing(int clie_fd)
+void* doSomeThing(void *arg)
 {
-  //int clie_fd = *((int *)arg);
+  int clie_fd = (int)(intptr_t)arg;
     while(1)
 	{
 	  char buff[1024];
@@ -240,7 +242,7 @@ void* doSomeThing(int clie_fd)
 	     ParseTheBuff(buff, sock_arr, clie_fd);
 	   }
          }
-
+  return NULL;
 }
 
 
@@ -556,7 +558,7 @@ void ParseTheBuff(char * buffer, int *sock_array, int clientsd)
 ////	(void) signal(SIGCHLD, reaper);
 //	while(1)
 //	{
-//		if((clie = accept(sock, (struct sockaddr *) &client , &len) )== -1)
+//		if((clie = accept(sock, (struct sockaddr *) &client , &slen) )== -1)
 //		{
 //			printf("accept failed\n");
 //			exit(-1);
