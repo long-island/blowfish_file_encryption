@@ -142,5 +142,6 @@ $<client_id>$<access_group>$<message_type>$<filename>$<key>$
 - Blowfish is used in CBC mode with a zero IV. For stronger security, generate a random IV
   per file and store/transmit it alongside the ciphertext.
 - Filenames passed to `sync()` and `remove()` are validated against an allowlist of safe
-  characters before being passed to `system()`. Filenames containing shell metacharacters
-  are rejected.
+  characters (alphanumerics, `_`, `-`, `.`) before being passed to child processes via
+  `fork()`+`execvp()`. Slashes are rejected to prevent directory traversal. No shell is
+  involved, so shell metacharacter injection is not possible.

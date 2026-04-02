@@ -59,7 +59,7 @@ void ParseTheBuff(char * buffer)
 		perror("\n Error creating key file ");
 	}
 
-	mode_t mode = 0;
+	mode_t mode = S_IRUSR | S_IWUSR;  /* 0600: user read/write */
 	int keyfd, outfd, decfd=-1;
 	int flags1 = 0, flags2 = 0;
 	flags1 = flags1 | O_RDONLY;
@@ -206,7 +206,8 @@ remove (char *rm_file)
 	static const char *SDRIVE_PATH = "/home/bala/S_drive/";
 
 	/* pre-sync: pull latest state from S-Drive */
-	char *grive_args[] = { (char*)"./grive", NULL };
+	/* execvp requires char*const[]; const_cast is safe: execvp never writes through argv */
+	char *grive_args[] = { const_cast<char*>("./grive"), NULL };
 	if (chdir(SDRIVE_PATH) == -1) { perror("chdir"); return -1; }
 	if (run_cmd("./grive", grive_args) != 0)
 		perror("grive pre-sync failed");
@@ -214,7 +215,7 @@ remove (char *rm_file)
 	/* remove the file */
 	char rm_path[512];
 	snprintf(rm_path, sizeof(rm_path), "%s%s", SDRIVE_PATH, rm_file);
-	char *rm_args[] = { (char*)"rm", rm_path, NULL };
+	char *rm_args[] = { const_cast<char*>("rm"), rm_path, NULL };
 	if (run_cmd("rm", rm_args) != 0)
 		perror("rm failed");
 	else {
@@ -236,13 +237,13 @@ sync (char *sync_file)
 	static const char *SDRIVE_PATH = "/home/bala/S_drive/";
 
 	/* pre-sync: pull latest state from S-Drive */
-	char *grive_args[] = { (char*)"./grive", NULL };
+	char *grive_args[] = { const_cast<char*>("./grive"), NULL };
 	if (chdir(SDRIVE_PATH) == -1) { perror("chdir"); return -1; }
 	if (run_cmd("./grive", grive_args) != 0)
 		perror("grive pre-sync failed");
 
 	/* copy the file into S-Drive */
-	char *cp_args[] = { (char*)"cp", sync_file, (char*)SDRIVE_PATH, NULL };
+	char *cp_args[] = { const_cast<char*>("cp"), sync_file, const_cast<char*>(SDRIVE_PATH), NULL };
 	if (run_cmd("cp", cp_args) != 0)
 		perror("cp failed");
 	else {
