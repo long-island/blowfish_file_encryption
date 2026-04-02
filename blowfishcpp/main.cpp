@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <iostream>
 #include <fstream>
 #include <string.h>
@@ -84,18 +85,35 @@ void ParseTheBuff(char * buffer)
 
 
 /* Returns 1 if the filename contains only safe characters, 0 otherwise.
- * Rejects shell metacharacters to prevent command injection via system(). */
+ * Only alphanumerics, underscores, hyphens and dots are permitted.
+ * Slashes are rejected to prevent directory traversal. */
 static int is_safe_filename(const char *name)
 {
 	if (!name || *name == '\0') return 0;
 	for (const char *p = name; *p; p++) {
 		if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
 		    (*p >= '0' && *p <= '9') || *p == '_' || *p == '-' ||
-		    *p == '.' || *p == '/')
+		    *p == '.')
 			continue;
 		return 0;
 	}
 	return 1;
+}
+
+/* Run a command as a child process using execvp (no shell involved).
+ * argv must be a NULL-terminated array.  Returns 0 on success, -1 on error. */
+static int run_cmd(const char *file, char *const argv[])
+{
+	pid_t pid = fork();
+	if (pid == -1) { perror("fork"); return -1; }
+	if (pid == 0) {
+		execvp(file, argv);
+		perror("execvp");
+		_exit(127);
+	}
+	int status;
+	if (waitpid(pid, &status, 0) == -1) { perror("waitpid"); return -1; }
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
 }
 
 int send_init(char *buff, int sock)
@@ -185,36 +203,24 @@ remove (char *rm_file)
 		return -1;
 	}
 
-	std::string rm_cmd ("");
-	std::string sync_cmd ("");
-	//std::string cp ("cp");
-	std::string rm ("rm");
-	std::string space (" ");
-	std::string PATH ("/home/bala/S_drive/");
-	std::string cd ("cd");
-	std::string sep (" ; ");
-	sync_cmd+=cd+space+PATH+sep+"./grive";
-	rm_cmd+=rm+space+PATH+rm_file;
+	static const char *SDRIVE_PATH = "/home/bala/S_drive/";
 
-	std::cout << sync_cmd.c_str() << endl;
-	if(system(sync_cmd.c_str())==-1)
-		{
-			perror("system(3) for sync failed");
-		}
+	/* pre-sync: pull latest state from S-Drive */
+	char *grive_args[] = { (char*)"./grive", NULL };
+	if (chdir(SDRIVE_PATH) == -1) { perror("chdir"); return -1; }
+	if (run_cmd("./grive", grive_args) != 0)
+		perror("grive pre-sync failed");
 
-
-	std::cout << rm_cmd.c_str() << endl;
-	if(system(rm_cmd.c_str())==-1)
-	{
-		perror("system(3) failed");
-	}
-	else
-	{
-		std::cout << sync_cmd.c_str() << endl;
-		if(system(sync_cmd.c_str())==-1)
-			{
-				perror("system(3) for sync failed");
-			}
+	/* remove the file */
+	char rm_path[512];
+	snprintf(rm_path, sizeof(rm_path), "%s%s", SDRIVE_PATH, rm_file);
+	char *rm_args[] = { (char*)"rm", rm_path, NULL };
+	if (run_cmd("rm", rm_args) != 0)
+		perror("rm failed");
+	else {
+		/* post-sync: push removal to S-Drive */
+		if (run_cmd("./grive", grive_args) != 0)
+			perror("grive post-sync failed");
 	}
 	return 0;
 }
@@ -227,36 +233,22 @@ sync (char *sync_file)
 		return -1;
 	}
 
-	std::string cp_cmd ("");
-	std::string sync_cmd ("");
-	std::string cp ("cp");
-	std::string space (" ");
-	std::string src (sync_file);
-	std::cout << src << endl;
-	std::string PATH ("/home/bala/S_drive/");
-	std::string cd ("cd");
-	std::string sep (" ; ");
-	sync_cmd+=cd+space+PATH+sep+"./grive";
+	static const char *SDRIVE_PATH = "/home/bala/S_drive/";
 
-	std::cout << sync_cmd.c_str() << endl;
-	if(system(sync_cmd.c_str())==-1)
-		{
-			perror("system(3) for sync failed");
-		}
+	/* pre-sync: pull latest state from S-Drive */
+	char *grive_args[] = { (char*)"./grive", NULL };
+	if (chdir(SDRIVE_PATH) == -1) { perror("chdir"); return -1; }
+	if (run_cmd("./grive", grive_args) != 0)
+		perror("grive pre-sync failed");
 
-	cp_cmd+=cp+space+src+space+PATH;
-	std::cout << cp_cmd.c_str() << endl;
-	if(system(cp_cmd.c_str())==-1)
-	{
-		perror("system(3) failed");
-	}
-	else
-	{
-		std::cout << sync_cmd.c_str() << endl;
-		if(system(sync_cmd.c_str())==-1)
-			{
-				perror("system(3) for sync failed");
-			}
+	/* copy the file into S-Drive */
+	char *cp_args[] = { (char*)"cp", sync_file, (char*)SDRIVE_PATH, NULL };
+	if (run_cmd("cp", cp_args) != 0)
+		perror("cp failed");
+	else {
+		/* post-sync: push new file to S-Drive */
+		if (run_cmd("./grive", grive_args) != 0)
+			perror("grive post-sync failed");
 	}
 	return 0;
 }
@@ -329,7 +321,7 @@ generate_key (char *key_file)
 	printf("128 bit key:\n");
 	for (i = 0; i < 16; i++)
 		printf ("%d \t", key[i]);
-	printf("\nSize of key is %zu",(size_t)sizeof(key));
+	printf("\nSize of key is %zu", sizeof(key));
 	printf ("\n ------ \n");
 
 
@@ -370,7 +362,7 @@ decrypt (int infd, int outfd, int keyfd)
 		printf ("%d=%d ",i,key[i]);
 	}
 	EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-	if (!ctx) { perror("EVP_CIPHER_CTX_new failed"); exit(1); }
+	if (!ctx) { fprintf(stderr, "EVP_CIPHER_CTX_new failed\n"); exit(1); }
 	EVP_DecryptInit (ctx, EVP_bf_cbc (), key, iv);
 
 	for (;;)
@@ -432,7 +424,7 @@ encrypt (int infd, int outfd, int keyfd)
 		printf ("%d=%d ",i,key[i]);
 	}
 	EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-	if (!ctx) { perror("EVP_CIPHER_CTX_new failed"); exit(1); }
+	if (!ctx) { fprintf(stderr, "EVP_CIPHER_CTX_new failed\n"); exit(1); }
 	EVP_EncryptInit (ctx, EVP_bf_cbc (), key, iv);
 
 	for (;;)
